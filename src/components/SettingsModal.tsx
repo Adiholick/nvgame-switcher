@@ -1,6 +1,15 @@
 import React from "react";
 import { AppSettings } from "../types";
-import { X, Layers, Trash2, HardDrive } from "lucide-react";
+import {
+  X,
+  Layers,
+  Trash2,
+  HardDrive,
+  Minimize2,
+  ShieldCheck,
+  Bell,
+  Clock,
+} from "lucide-react";
 import { ToggleSwitch } from "./common/ToggleSwitch";
 
 interface SettingsModalProps {
@@ -47,7 +56,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
       <div className="w-full max-w-md bg-[#1C1C1E] border border-[#38383A] rounded-2xl shadow-2xl overflow-hidden flex flex-col">
         {/* Modal Header */}
         <div className="px-5 py-4 border-b border-[#2C2C2E] flex items-center justify-between bg-[#161618]">
@@ -66,66 +75,114 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         </div>
 
         {/* Modal Body */}
-        <div className="p-5 space-y-4">
+        <div className="p-5 space-y-3.5">
           {/* Switch 1: Minimize to System Tray */}
-          <div className="p-3.5 rounded-xl bg-[#252525] border border-[#333336] flex items-center justify-between gap-4">
-            <div className="flex flex-col">
-              <span className="text-sm font-semibold text-gray-200">
-                Minimize to System Tray
-              </span>
-              <span className="text-xs text-gray-400 mt-0.5">
-                Clicking the Close (X) button hides the window to the Windows 11
-                System Tray while simulations continue.
-              </span>
+          <div
+            onClick={() =>
+              handleToggleMinimizeToTray(!settings.minimize_to_tray_on_close)
+            }
+            className="p-3.5 rounded-xl bg-[#252525] hover:bg-[#2A2A2E] border border-[#38383C] hover:border-[#48484E] flex items-center justify-between gap-4 transition-all cursor-pointer group shadow-sm active:scale-[0.99]"
+          >
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-lg bg-[#1C1C1E] border border-[#333336] text-[#00AAFF] group-hover:border-[#00AAFF]/40 transition-colors mt-0.5">
+                <Minimize2 className="w-4 h-4" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-sm font-semibold text-gray-200 group-hover:text-white transition-colors">
+                  Minimize to System Tray
+                </span>
+                <span className="text-xs text-gray-400 mt-0.5 leading-relaxed">
+                  Menutup jendela (X) akan menyembunyikan aplikasi ke System Tray
+                  sementara simulasi tetap berjalan.
+                </span>
+              </div>
             </div>
-            <ToggleSwitch
-              checked={settings.minimize_to_tray_on_close}
-              onChange={handleToggleMinimizeToTray}
-            />
+            <div className="flex-shrink-0">
+              <ToggleSwitch
+                checked={settings.minimize_to_tray_on_close}
+                onChange={handleToggleMinimizeToTray}
+                showLabel={true}
+              />
+            </div>
           </div>
 
           {/* Switch 2: Auto Cleanup on Exit */}
-          <div className="p-3.5 rounded-xl bg-[#252525] border border-[#333336] flex items-center justify-between gap-4">
-            <div className="flex flex-col">
-              <span className="text-sm font-semibold text-gray-200">
-                Auto Cleanup on Exit
-              </span>
-              <span className="text-xs text-gray-400 mt-0.5">
-                Ensure all dummy child processes are killed and %TEMP%\dgs_runtime
-                is wiped clean when quitting.
-              </span>
+          <div
+            onClick={() =>
+              handleToggleAutoCleanup(!settings.auto_cleanup_on_exit)
+            }
+            className="p-3.5 rounded-xl bg-[#252525] hover:bg-[#2A2A2E] border border-[#38383C] hover:border-[#48484E] flex items-center justify-between gap-4 transition-all cursor-pointer group shadow-sm active:scale-[0.99]"
+          >
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-lg bg-[#1C1C1E] border border-[#333336] text-[#00AAFF] group-hover:border-[#00AAFF]/40 transition-colors mt-0.5">
+                <ShieldCheck className="w-4 h-4" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-sm font-semibold text-gray-200 group-hover:text-white transition-colors">
+                  Auto Cleanup on Exit
+                </span>
+                <span className="text-xs text-gray-400 mt-0.5 leading-relaxed">
+                  Hentikan seluruh proses game dan bersihkan direktori
+                  %TEMP%\dgs_runtime saat aplikasi ditutup.
+                </span>
+              </div>
             </div>
-            <ToggleSwitch
-              checked={settings.auto_cleanup_on_exit}
-              onChange={handleToggleAutoCleanup}
-            />
+            <div className="flex-shrink-0">
+              <ToggleSwitch
+                checked={settings.auto_cleanup_on_exit}
+                onChange={handleToggleAutoCleanup}
+                showLabel={true}
+              />
+            </div>
           </div>
 
           {/* Switch 3: Notify on Auto Switch */}
-          <div className="p-3.5 rounded-xl bg-[#252525] border border-[#333336] flex items-center justify-between gap-4">
-            <div className="flex flex-col">
-              <span className="text-sm font-semibold text-gray-200">
-                Notifikasi Auto Switch
-              </span>
-              <span className="text-xs text-gray-400 mt-0.5">
-                Tampilkan notifikasi desktop ketika sistem otomatis berganti ke game acak berikutnya.
-              </span>
+          <div
+            onClick={() =>
+              handleToggleNotifyAutoSwitch(
+                !(settings.notify_on_auto_switch ?? true)
+              )
+            }
+            className="p-3.5 rounded-xl bg-[#252525] hover:bg-[#2A2A2E] border border-[#38383C] hover:border-[#48484E] flex items-center justify-between gap-4 transition-all cursor-pointer group shadow-sm active:scale-[0.99]"
+          >
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-lg bg-[#1C1C1E] border border-[#333336] text-[#00AAFF] group-hover:border-[#00AAFF]/40 transition-colors mt-0.5">
+                <Bell className="w-4 h-4" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-sm font-semibold text-gray-200 group-hover:text-white transition-colors">
+                  Notifikasi Auto Switch
+                </span>
+                <span className="text-xs text-gray-400 mt-0.5 leading-relaxed">
+                  Tampilkan notifikasi desktop saat sistem otomatis berpindah ke
+                  game berikutnya.
+                </span>
+              </div>
             </div>
-            <ToggleSwitch
-              checked={settings.notify_on_auto_switch ?? true}
-              onChange={handleToggleNotifyAutoSwitch}
-            />
+            <div className="flex-shrink-0">
+              <ToggleSwitch
+                checked={settings.notify_on_auto_switch ?? true}
+                onChange={handleToggleNotifyAutoSwitch}
+                showLabel={true}
+              />
+            </div>
           </div>
 
           {/* Clear History */}
           <div className="p-3.5 rounded-xl bg-[#252525] border border-[#333336] flex items-center justify-between gap-4">
-            <div className="flex flex-col">
-              <span className="text-sm font-semibold text-gray-200">
-                Recent History
-              </span>
-              <span className="text-xs text-gray-400 mt-0.5">
-                {settings.recent_history.length} games recorded in recent history.
-              </span>
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-lg bg-[#1C1C1E] border border-[#333336] text-gray-400 mt-0.5">
+                <Clock className="w-4 h-4" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-sm font-semibold text-gray-200">
+                  Recent History
+                </span>
+                <span className="text-xs text-gray-400 mt-0.5">
+                  {settings.recent_history.length} game tersimpan dalam riwayat
+                  bermain.
+                </span>
+              </div>
             </div>
             <button
               onClick={handleClearHistory}
@@ -148,8 +205,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <span>Zero-Clutter NTFS Engine</span>
             </div>
             <p className="text-[11px] leading-relaxed text-gray-500">
-              Executables are linked via NTFS Hardlinks into %TEMP%\dgs_runtime with
-              0 byte disk allocation. Child processes run silently with 0% CPU.
+              Executable dihubungkan via NTFS Hardlink ke %TEMP%\dgs_runtime dengan
+              0 byte penggunaan disk. Proses dummy berjalan senyap tanpa beban CPU.
             </p>
           </div>
         </div>
