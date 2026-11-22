@@ -9,8 +9,9 @@ use windows_sys::Win32::Foundation::HWND;
 #[cfg(target_os = "windows")]
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW, PostQuitMessage,
-    RegisterClassW, ShowWindow, TranslateMessage, MSG, SW_SHOWNOACTIVATE,
-    WNDCLASSW, WS_OVERLAPPEDWINDOW, WM_DESTROY,
+    RegisterClassW, ShowWindow, TranslateMessage, MSG, SW_SHOWMINNOACTIVE,
+    WNDCLASSW, WS_OVERLAPPEDWINDOW, WS_MINIMIZE, WS_EX_TOOLWINDOW, WS_EX_NOACTIVATE,
+    WM_DESTROY,
 };
 
 #[cfg(target_os = "windows")]
@@ -61,13 +62,13 @@ fn main() {
 
         RegisterClassW(&wnd_class);
 
-        // Create top-level visible window positioned off-screen (-32000, -32000)
-        // Discord's game scanner relies on EnumWindows & IsWindowVisible to detect running games!
+        // Create a minimized tool window (hidden from taskbar & Alt+Tab, no focus stealing)
+        // Discord's game detection can still register the process and window handle without user interruption!
         let hwnd = CreateWindowExW(
-            0,
+            WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
             class_name.as_ptr(),
             window_title.as_ptr(),
-            WS_OVERLAPPEDWINDOW,
+            WS_OVERLAPPEDWINDOW | WS_MINIMIZE,
             -32000,
             -32000,
             100,
@@ -79,7 +80,7 @@ fn main() {
         );
 
         if hwnd != 0 as _ {
-            ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+            ShowWindow(hwnd, SW_SHOWMINNOACTIVE);
         }
 
         // Standard Win32 message pump: GetMessage blocks when queue is idle (0% CPU)
