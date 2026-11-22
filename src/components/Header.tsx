@@ -1,5 +1,5 @@
 import React from "react";
-import { Search, RefreshCw, Settings as SettingsIcon } from "lucide-react";
+import { Search, RefreshCw, Settings as SettingsIcon, Shuffle } from "lucide-react";
 
 interface HeaderProps {
   searchQuery: string;
@@ -8,6 +8,8 @@ interface HeaderProps {
   isSyncing: boolean;
   totalGames: number;
   onOpenSettings: () => void;
+  isAutoSwitch: boolean;
+  onToggleAutoSwitch: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -17,6 +19,8 @@ export const Header: React.FC<HeaderProps> = ({
   isSyncing,
   totalGames,
   onOpenSettings,
+  isAutoSwitch,
+  onToggleAutoSwitch,
 }) => {
   return (
     <div className="p-3.5 border-b border-[#2C2C2E] bg-[#161618] flex items-center justify-between gap-3">
@@ -42,6 +46,24 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Action Buttons */}
       <div className="flex items-center gap-2">
+        {/* Auto Switch Button */}
+        <button
+          onClick={onToggleAutoSwitch}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all active:scale-95 ${
+            isAutoSwitch
+              ? "bg-[#00AAFF]/20 border-[#00AAFF] text-[#00FFFF] shadow-[0_0_12px_rgba(0,170,255,0.3)]"
+              : "bg-[#252525] hover:bg-[#2F2F32] border-[#3F3F3F] text-gray-200 hover:text-white"
+          }`}
+          title={
+            isAutoSwitch
+              ? "Klik untuk mematikan mode Auto Switch"
+              : "Otomatis beralih game acak setiap 7 - 20 menit"
+          }
+        >
+          <Shuffle className={`w-3.5 h-3.5 ${isAutoSwitch ? "animate-spin text-[#00FFFF]" : "text-gray-400"}`} />
+          <span>{isAutoSwitch ? "Auto Switch: ON" : "Auto Switch"}</span>
+        </button>
+
         <button
           onClick={onSync}
           disabled={isSyncing}

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { Shuffle } from "lucide-react";
 import { GameItem, ActiveSession, AppSettings, TabType } from "./types";
 import { TitleBar } from "./components/TitleBar";
 import { Header } from "./components/Header";
@@ -16,6 +17,7 @@ export const App: React.FC = () => {
     recent_history: [],
     minimize_to_tray_on_close: true,
     auto_cleanup_on_exit: true,
+    notify_on_auto_switch: true,
   });
   const [activeSession, setActiveSession] = useState<ActiveSession | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -23,6 +25,12 @@ export const App: React.FC = () => {
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  // Auto Switch states
+  const [isAutoSwitch, setIsAutoSwitch] = useState<boolean>(false);
+  const [autoSwitchTargetTime, setAutoSwitchTargetTime] = useState<number | null>(null);
+  const [autoSwitchRemainingSecs, setAutoSwitchRemainingSecs] = useState<number | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Initialize data on mount
   useEffect(() => {
@@ -86,6 +94,9 @@ export const App: React.FC = () => {
     if (activeSession?.app_id === game.id) {
       // Stop current simulation
       try {
+        setIsAutoSwitch(false);
+        setAutoSwitchTargetTime(null);
+        setAutoSwitchRemainingSecs(null);
         await invoke("stop_simulation");
         setActiveSession(null);
         // Refresh settings to update history
@@ -132,6 +143,125 @@ export const App: React.FC = () => {
     }
   };
 
+  // Show in-app Toast & Windows notification
+  const notifyGameSwitched = (gameName: string) => {
+    if (settings.notify_on_auto_switch ?? true) {
+      setToastMessage(`Auto Switch: Sekarang bermain ${gameName}`);
+      setTimeout(() => setToastMessage(null), 5000);
+
+      if ("Notification" in window) {
+        if (Notification.permission === "granted") {
+          new Notification("NVGame Switcher", {
+            body: `Auto Switch: Beralih ke ${gameName}`,
+          });
+        } else if (Notification.permission !== "denied") {
+          Notification.requestPermission().then((permission) => {
+            if (permission === "granted") {
+              new Notification("NVGame Switcher", {
+                body: `Auto Switch: Beralih ke ${gameName}`,
+              });
+            }
+          });
+        }
+      }
+    }
+  };
+
+  // Get random duration between 7 minutes (420s) and 20 minutes (1200s)
+  const getRandomDuration = () => {
+    const MIN_SECS = 7 * 60; // 420 detik
+    const MAX_SECS = 20 * 60; // 1200 detik
+    return Math.floor(Math.random() * (MAX_SECS - MIN_SECS + 1)) + MIN_SECS;
+  };
+
+  // Pick random game according to User Decision Option A:
+  // Random from all games, or from favorites if favorites tab is currently active.
+  const pickRandomGame = (excludeId?: string): GameItem | null => {
+    let pool = games;
+    if (activeTab === "favorites" && settings.favorites.length > 0) {
+      const favGames = games.filter((g) => settings.favorites.includes(g.id));
+      if (favGames.length > 0) {
+        pool = favGames;
+      }
+    }
+
+    const validGames = pool.filter((g) => g.executables && g.executables.length > 0);
+    if (validGames.length === 0) return null;
+
+    const candidates = validGames.length > 1 && excludeId
+      ? validGames.filter((g) => g.id !== excludeId)
+      : validGames;
+
+    return candidates[Math.floor(Math.random() * candidates.length)];
+  };
+
+  // Trigger switch to next random game
+  const triggerNextAutoSwitch = async (excludeId?: string) => {
+    const nextGame = pickRandomGame(excludeId);
+    if (!nextGame) return;
+    const selectedExe = nextGame.executables[0] || "game.exe";
+
+    try {
+      const newSession = await invoke<ActiveSession>("start_simulation", {
+        appId: nextGame.id,
+        gameName: nextGame.name,
+        relativePath: selectedExe,
+      });
+      setActiveSession(newSession);
+
+      const durationSecs = getRandomDuration();
+      const targetTime = Date.now() + durationSecs * 1000;
+      setAutoSwitchTargetTime(targetTime);
+      setAutoSwitchRemainingSecs(durationSecs);
+
+      notifyGameSwitched(nextGame.name);
+    } catch (err) {
+      console.error("Auto Switch error:", err);
+    }
+  };
+
+  // Toggle Auto Switch On/Off
+  const handleToggleAutoSwitch = () => {
+    if (isAutoSwitch) {
+      setIsAutoSwitch(false);
+      setAutoSwitchTargetTime(null);
+      setAutoSwitchRemainingSecs(null);
+      setToastMessage("Auto Switch dinonaktifkan");
+      setTimeout(() => setToastMessage(null), 3000);
+    } else {
+      setIsAutoSwitch(true);
+      if (activeSession) {
+        // Continue current session, schedule next random switch
+        const durationSecs = getRandomDuration();
+        const targetTime = Date.now() + durationSecs * 1000;
+        setAutoSwitchTargetTime(targetTime);
+        setAutoSwitchRemainingSecs(durationSecs);
+        setToastMessage(`Auto Switch aktif! Berganti dalam ${Math.floor(durationSecs / 60)} menit`);
+        setTimeout(() => setToastMessage(null), 4000);
+      } else {
+        // Start immediate random game
+        triggerNextAutoSwitch();
+      }
+    }
+  };
+
+  // Countdown timer effect for Auto Switch
+  useEffect(() => {
+    if (!isAutoSwitch || !autoSwitchTargetTime) return;
+
+    const interval = setInterval(() => {
+      const diff = Math.max(0, Math.round((autoSwitchTargetTime - Date.now()) / 1000));
+      setAutoSwitchRemainingSecs(diff);
+
+      if (diff <= 0) {
+        // Time expired! Switch to next random game
+        triggerNextAutoSwitch(activeSession?.app_id);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isAutoSwitch, autoSwitchTargetTime, activeSession?.app_id, games, settings.favorites, activeTab]);
+
   // Filtered games based on tab and instant search query
   const filteredGames = useMemo(() => {
     let sourceList = games;
@@ -165,10 +295,15 @@ export const App: React.FC = () => {
       {/* Windows 11 Fluent Draggable Titlebar */}
       <TitleBar />
 
-      {/* Active Session Banner with Live Stopwatch */}
+      {/* Active Session Banner with Live Stopwatch & Auto Switch countdown */}
       <ActiveSessionBanner
         session={activeSession}
+        isAutoSwitch={isAutoSwitch}
+        autoSwitchRemainingSecs={autoSwitchRemainingSecs}
         onStop={() => {
+          setIsAutoSwitch(false);
+          setAutoSwitchTargetTime(null);
+          setAutoSwitchRemainingSecs(null);
           if (activeSession) {
             const foundGame = games.find((g) => g.id === activeSession.app_id);
             if (foundGame) {
@@ -180,7 +315,7 @@ export const App: React.FC = () => {
         }}
       />
 
-      {/* Header with Search and Actions */}
+      {/* Header with Search, Auto Switch, Sync, and Settings */}
       <Header
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
@@ -188,6 +323,8 @@ export const App: React.FC = () => {
         isSyncing={isSyncing}
         totalGames={games.length}
         onOpenSettings={() => setIsSettingsOpen(true)}
+        isAutoSwitch={isAutoSwitch}
+        onToggleAutoSwitch={handleToggleAutoSwitch}
       />
 
       {/* Tab Bar (All / Favorites / History) */}
@@ -224,6 +361,14 @@ export const App: React.FC = () => {
         settings={settings}
         onUpdateSettings={handleUpdateSettings}
       />
+
+      {/* Auto Switch Toast Notification */}
+      {toastMessage && (
+        <div className="fixed bottom-5 right-5 z-50 bg-[#161618] border border-[#00AAFF] text-[#00FFFF] px-4 py-2.5 rounded-xl shadow-2xl flex items-center gap-2.5 text-xs font-semibold animate-pulse backdrop-blur-md">
+          <Shuffle className="w-4 h-4 text-[#00FF66]" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
     </div>
   );
 };

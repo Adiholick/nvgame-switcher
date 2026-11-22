@@ -32,6 +32,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     });
   };
 
+  const handleToggleNotifyAutoSwitch = (val: boolean) => {
+    onUpdateSettings({
+      ...settings,
+      notify_on_auto_switch: val,
+    });
+  };
+
   const handleClearHistory = () => {
     onUpdateSettings({
       ...settings,
@@ -91,6 +98,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <ToggleSwitch
               checked={settings.auto_cleanup_on_exit}
               onChange={handleToggleAutoCleanup}
+            />
+          </div>
+
+          {/* Switch 3: Notify on Auto Switch */}
+          <div className="p-3.5 rounded-xl bg-[#252525] border border-[#333336] flex items-center justify-between gap-4">
+            <div className="flex flex-col">
+              <span className="text-sm font-semibold text-gray-200">
+                Notifikasi Auto Switch
+              </span>
+              <span className="text-xs text-gray-400 mt-0.5">
+                Tampilkan notifikasi desktop ketika sistem otomatis berganti ke game acak berikutnya.
+              </span>
+            </div>
+            <ToggleSwitch
+              checked={settings.notify_on_auto_switch ?? true}
+              onChange={handleToggleNotifyAutoSwitch}
             />
           </div>
 

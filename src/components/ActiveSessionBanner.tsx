@@ -1,15 +1,19 @@
 import React, { useEffect, useState } from "react";
 import { ActiveSession } from "../types";
-import { Square, Cpu } from "lucide-react";
+import { Square, Cpu, Shuffle } from "lucide-react";
 
 interface ActiveSessionBannerProps {
   session: ActiveSession | null;
   onStop: () => void;
+  isAutoSwitch?: boolean;
+  autoSwitchRemainingSecs?: number | null;
 }
 
 export const ActiveSessionBanner: React.FC<ActiveSessionBannerProps> = ({
   session,
   onStop,
+  isAutoSwitch = false,
+  autoSwitchRemainingSecs = null,
 }) => {
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
 
@@ -69,6 +73,22 @@ export const ActiveSessionBanner: React.FC<ActiveSessionBannerProps> = ({
       </div>
 
       <div className="flex items-center gap-4">
+        {/* Auto Switch Countdown Indicator */}
+        {isAutoSwitch && autoSwitchRemainingSecs !== null && (
+          <div className="flex flex-col items-end pr-3 border-r border-[#333336]">
+            <span className="text-[10px] text-[#00FFFF] uppercase tracking-wider font-semibold flex items-center gap-1">
+              <Shuffle className="w-2.5 h-2.5 animate-spin" /> Auto Switch In
+            </span>
+            <span className="font-mono text-base font-bold text-[#00FF66] tracking-wider">
+              {Math.floor(autoSwitchRemainingSecs / 60)
+                .toString()
+                .padStart(2, "0")}
+              :
+              {(autoSwitchRemainingSecs % 60).toString().padStart(2, "0")}
+            </span>
+          </div>
+        )}
+
         {/* Stopwatch */}
         <div className="flex flex-col items-end">
           <span className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">

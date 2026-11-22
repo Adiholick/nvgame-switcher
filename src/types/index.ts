@@ -26,6 +26,13 @@ export interface AppSettings {
   recent_history: HistoryItem[];
   minimize_to_tray_on_close: boolean;
   auto_cleanup_on_exit: boolean;
+  notify_on_auto_switch?: boolean;
+}
+
+export interface AutoSwitchState {
+  enabled: boolean;
+  targetEndTime: number | null;
+  remainingSeconds: number;
 }
 
 export type TabType = "all" | "favorites" | "history";
