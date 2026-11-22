@@ -1,0 +1,31 @@
+[package]
+name = "nvgame-switcher"
+version = "1.0.0"
+description = "High-performance native Windows 11 Discord Game Activity Switcher"
+authors = ["NVStudio"]
+edition = "2021"
+
+[lib]
+name = "nvgame_switcher_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.2.0", features = [] }
+
+[dependencies]
+tauri = { version = "2.2.0", features = ["tray-icon"] }
+tauri-plugin-shell = "2.2.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1", features = ["full"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "gzip"] }
+windows-sys = { version = "0.59", features = ["Win32_System_Threading", "Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_Graphics_Gdi"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+[[bin]]
+name = "nvgame-switcher"
+path = "src/main.rs"
+
+[[bin]]
+name = "dummy"
+path = "src/dummy_main.rs"
