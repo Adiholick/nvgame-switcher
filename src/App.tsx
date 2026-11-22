@@ -25,6 +25,7 @@ export const App: React.FC = () => {
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isStarting, setIsStarting] = useState<boolean>(false);
 
   // Auto Switch states
   const [isAutoSwitch, setIsAutoSwitch] = useState<boolean>(false);
@@ -91,9 +92,11 @@ export const App: React.FC = () => {
 
   // Handle Toggle Active Simulation
   const handleToggleActive = async (game: GameItem, selectedExe: string) => {
-    if (activeSession?.app_id === game.id) {
-      // Stop current simulation
-      try {
+    if (isStarting) return;
+    setIsStarting(true);
+    try {
+      if (activeSession?.app_id === game.id) {
+        // Stop current simulation
         setIsAutoSwitch(false);
         setAutoSwitchTargetTime(null);
         setAutoSwitchRemainingSecs(null);
@@ -102,22 +105,20 @@ export const App: React.FC = () => {
         // Refresh settings to update history
         const updated = await invoke<AppSettings>("get_settings");
         setSettings(updated);
-      } catch (err) {
-        console.error("Stop simulation error:", err);
-      }
-    } else {
-      // Start simulation
-      try {
+      } else {
+        // Start simulation
         const newSession = await invoke<ActiveSession>("start_simulation", {
           appId: game.id,
           gameName: game.name,
           relativePath: selectedExe,
         });
         setActiveSession(newSession);
-      } catch (err) {
-        console.error("Start simulation error:", err);
-        alert(`Failed to start game activity: ${err}`);
       }
+    } catch (err) {
+      console.error("Simulation error:", err);
+      alert(`Failed to start game activity: ${err}`);
+    } finally {
+      setIsStarting(false);
     }
   };
 
@@ -143,26 +144,21 @@ export const App: React.FC = () => {
     }
   };
 
-  // Show in-app Toast & Windows notification
+  // Show in-app Toast & Windows notification (Zero-lag, non-blocking)
   const notifyGameSwitched = (gameName: string) => {
     if (settings.notify_on_auto_switch ?? true) {
       setToastMessage(`Auto Switch: Sekarang bermain ${gameName}`);
-      setTimeout(() => setToastMessage(null), 5000);
+      setTimeout(() => setToastMessage(null), 4500);
 
-      if ("Notification" in window) {
-        if (Notification.permission === "granted") {
+      try {
+        if ("Notification" in window && Notification.permission === "granted") {
           new Notification("NVGame Switcher", {
             body: `Auto Switch: Beralih ke ${gameName}`,
-          });
-        } else if (Notification.permission !== "denied") {
-          Notification.requestPermission().then((permission) => {
-            if (permission === "granted") {
-              new Notification("NVGame Switcher", {
-                body: `Auto Switch: Beralih ke ${gameName}`,
-              });
-            }
+            silent: true,
           });
         }
+      } catch (e) {
+        // ignore notification error
       }
     }
   };

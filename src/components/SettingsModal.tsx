@@ -42,6 +42,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   const handleToggleNotifyAutoSwitch = (val: boolean) => {
+    if (val && "Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission().catch(() => {});
+    }
     onUpdateSettings({
       ...settings,
       notify_on_auto_switch: val,
