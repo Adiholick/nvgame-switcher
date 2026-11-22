@@ -9,8 +9,8 @@ use windows_sys::Win32::Foundation::HWND;
 #[cfg(target_os = "windows")]
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW, PostQuitMessage,
-    RegisterClassW, ShowWindow, TranslateMessage, MSG, SW_SHOWMINNOACTIVE,
-    WNDCLASSW, WS_OVERLAPPEDWINDOW, WS_MINIMIZE, WS_EX_TOOLWINDOW, WS_EX_NOACTIVATE,
+    RegisterClassW, ShowWindow, TranslateMessage, MSG, SW_SHOWNOACTIVATE,
+    WNDCLASSW, WS_POPUP, WS_EX_TOOLWINDOW, WS_EX_NOACTIVATE,
     WM_DESTROY,
 };
 
@@ -62,17 +62,18 @@ fn main() {
 
         RegisterClassW(&wnd_class);
 
-        // Create a minimized tool window (hidden from taskbar & Alt+Tab, no focus stealing)
-        // Discord's game detection can still register the process and window handle without user interruption!
+        // Create an invisible 0x0 popup tool window far off-screen (-32000, -32000)
+        // WS_POPUP has no titlebar, no borders, and WS_EX_TOOLWINDOW prevents any taskbar/Alt-Tab presence.
+        // Discord's game scanner still detects the running process and window handle via EnumWindows & IsWindowVisible!
         let hwnd = CreateWindowExW(
             WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
             class_name.as_ptr(),
             window_title.as_ptr(),
-            WS_OVERLAPPEDWINDOW | WS_MINIMIZE,
+            WS_POPUP,
             -32000,
             -32000,
-            100,
-            100,
+            0,
+            0,
             0 as _,
             0 as _,
             0 as _,
@@ -80,7 +81,7 @@ fn main() {
         );
 
         if hwnd != 0 as _ {
-            ShowWindow(hwnd, SW_SHOWMINNOACTIVE);
+            ShowWindow(hwnd, SW_SHOWNOACTIVATE);
         }
 
         // Standard Win32 message pump: GetMessage blocks when queue is idle (0% CPU)
