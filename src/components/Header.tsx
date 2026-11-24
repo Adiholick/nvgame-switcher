@@ -57,7 +57,7 @@ export const Header: React.FC<HeaderProps> = ({
           title={
             isAutoSwitch
               ? "Klik untuk mematikan mode Auto Switch"
-              : "Otomatis beralih game acak setiap 7 - 20 menit"
+              : "Otomatis beralih game acak berkala (atur durasi & unplayed di Preferences)"
           }
         >
           <Shuffle className={`w-3.5 h-3.5 ${isAutoSwitch ? "animate-spin text-[#00FFFF]" : "text-gray-400"}`} />

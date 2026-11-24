@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { GameItem } from "../types";
-import { Star, Gamepad2, AlertTriangle } from "lucide-react";
+import { GameItem, HistoryItem } from "../types";
+import { Star, Gamepad2, AlertTriangle, Clock } from "lucide-react";
 import { ToggleSwitch } from "./common/ToggleSwitch";
 
 interface GameRowProps {
@@ -9,7 +9,17 @@ interface GameRowProps {
   isActive: boolean;
   onToggleActive: (game: GameItem, selectedExe: string) => void;
   onToggleFavorite: (appId: string) => void;
+  historyInfo?: HistoryItem;
 }
+
+const formatDuration = (secs: number): string => {
+  if (secs < 60) return `${secs}s`;
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  const remMins = mins % 60;
+  return remMins > 0 ? `${hrs}h ${remMins}m` : `${hrs}h`;
+};
 
 export const GameRow: React.FC<GameRowProps> = ({
   game,
@@ -17,6 +27,7 @@ export const GameRow: React.FC<GameRowProps> = ({
   isActive,
   onToggleActive,
   onToggleFavorite,
+  historyInfo,
 }) => {
   const [selectedExe, setSelectedExe] = useState<string>(
     game.executables[0] || "game.exe"
@@ -65,6 +76,14 @@ export const GameRow: React.FC<GameRowProps> = ({
                 title="This game uses a generic executable (e.g. javaw.exe). Discord might require specific command-line arguments to recognize it."
               >
                 <AlertTriangle className="w-2.5 h-2.5" /> Generic
+              </span>
+            )}
+            {historyInfo && historyInfo.total_seconds > 0 && (
+              <span
+                className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-[#00AAFF]/10 text-[#00FFFF] border border-[#00AAFF]/20 font-mono font-medium flex-shrink-0"
+                title={`Last played: ${new Date(historyInfo.last_played_at).toLocaleString()}`}
+              >
+                <Clock className="w-2.5 h-2.5" /> {formatDuration(historyInfo.total_seconds)}
               </span>
             )}
           </div>

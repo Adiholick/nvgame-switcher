@@ -18,6 +18,9 @@ export const App: React.FC = () => {
     minimize_to_tray_on_close: true,
     auto_cleanup_on_exit: true,
     notify_on_auto_switch: true,
+    auto_switch_unplayed_only: false,
+    auto_switch_min_minutes: 7,
+    auto_switch_max_minutes: 20,
   });
   const [activeSession, setActiveSession] = useState<ActiveSession | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -32,6 +35,17 @@ export const App: React.FC = () => {
   const [autoSwitchTargetTime, setAutoSwitchTargetTime] = useState<number | null>(null);
   const [autoSwitchRemainingSecs, setAutoSwitchRemainingSecs] = useState<number | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // History Map lookup for fast metadata retrieval
+  const historyMap = useMemo(() => {
+    return new Map(settings.recent_history.map((h) => [h.id, h]));
+  }, [settings.recent_history]);
+
+  // Total unplayed games count
+  const unplayedCount = useMemo(() => {
+    const playedIds = new Set(settings.recent_history.map((h) => h.id));
+    return games.filter((g) => !playedIds.has(g.id)).length;
+  }, [games, settings.recent_history]);
 
   // Initialize data on mount
   useEffect(() => {
@@ -55,15 +69,27 @@ export const App: React.FC = () => {
     initData();
 
     // Listen for session stopped from Tray
-    const unlistenPromise = listen("session-stopped", () => {
+    const unlistenPromise = listen("session-stopped", async () => {
       setActiveSession(null);
+      try {
+        const updated = await invoke<AppSettings>("get_settings");
+        setSettings(updated);
+      } catch (e) {
+        // ignore
+      }
     });
 
     // Interval check for active session status (in case user closed dummy externally)
     const checkInterval = setInterval(async () => {
       try {
         const session = await invoke<ActiveSession | null>("get_active_session");
-        setActiveSession(session);
+        setActiveSession((prev) => {
+          if (prev && !session) {
+            // Process just ended, refresh history
+            invoke<AppSettings>("get_settings").then(setSettings).catch(() => {});
+          }
+          return session;
+        });
       } catch (e) {
         // ignore
       }
@@ -113,6 +139,9 @@ export const App: React.FC = () => {
           relativePath: selectedExe,
         });
         setActiveSession(newSession);
+        // Refresh settings so the newly started game immediately shows up in Recently Played
+        const updated = await invoke<AppSettings>("get_settings");
+        setSettings(updated);
       }
     } catch (err) {
       console.error("Simulation error:", err);
@@ -163,15 +192,18 @@ export const App: React.FC = () => {
     }
   };
 
-  // Get random duration between 7 minutes (420s) and 20 minutes (1200s)
+  // Get random duration between configured min and max minutes
   const getRandomDuration = () => {
-    const MIN_SECS = 7 * 60; // 420 detik
-    const MAX_SECS = 20 * 60; // 1200 detik
-    return Math.floor(Math.random() * (MAX_SECS - MIN_SECS + 1)) + MIN_SECS;
+    const minMins = Math.max(1, settings.auto_switch_min_minutes ?? 7);
+    const maxMins = Math.max(minMins, settings.auto_switch_max_minutes ?? 20);
+    const minSecs = minMins * 60;
+    const maxSecs = maxMins * 60;
+    return Math.floor(Math.random() * (maxSecs - minSecs + 1)) + minSecs;
   };
 
-  // Pick random game according to User Decision Option A:
-  // Random from all games, or from favorites if favorites tab is currently active.
+  // Pick random game according to settings:
+  // - Tab context (favorites tab vs all games)
+  // - Switch Unplayed Game mode (excludes all games already in recent_history)
   const pickRandomGame = (excludeId?: string): GameItem | null => {
     let pool = games;
     if (activeTab === "favorites" && settings.favorites.length > 0) {
@@ -181,12 +213,21 @@ export const App: React.FC = () => {
       }
     }
 
+    // Filter unplayed games only if setting is enabled
+    if (settings.auto_switch_unplayed_only) {
+      const playedIds = new Set(settings.recent_history.map((h) => h.id));
+      pool = pool.filter((g) => !playedIds.has(g.id));
+    }
+
     const validGames = pool.filter((g) => g.executables && g.executables.length > 0);
     if (validGames.length === 0) return null;
 
-    const candidates = validGames.length > 1 && excludeId
-      ? validGames.filter((g) => g.id !== excludeId)
-      : validGames;
+    const candidates =
+      validGames.length > 1 && excludeId
+        ? validGames.filter((g) => g.id !== excludeId)
+        : validGames;
+
+    if (candidates.length === 0) return null;
 
     return candidates[Math.floor(Math.random() * candidates.length)];
   };
@@ -194,7 +235,16 @@ export const App: React.FC = () => {
   // Trigger switch to next random game
   const triggerNextAutoSwitch = async (excludeId?: string) => {
     const nextGame = pickRandomGame(excludeId);
-    if (!nextGame) return;
+    if (!nextGame) {
+      if (settings.auto_switch_unplayed_only) {
+        setToastMessage("Auto Switch: Semua game dalam daftar sudah pernah dimainkan!");
+        setTimeout(() => setToastMessage(null), 5000);
+        setIsAutoSwitch(false);
+        setAutoSwitchTargetTime(null);
+        setAutoSwitchRemainingSecs(null);
+      }
+      return;
+    }
     const selectedExe = nextGame.executables[0] || "game.exe";
 
     try {
@@ -204,6 +254,10 @@ export const App: React.FC = () => {
         relativePath: selectedExe,
       });
       setActiveSession(newSession);
+
+      // Refresh settings immediately so history reflects newly played game
+      const updated = await invoke<AppSettings>("get_settings");
+      setSettings(updated);
 
       const durationSecs = getRandomDuration();
       const targetTime = Date.now() + durationSecs * 1000;
@@ -225,6 +279,24 @@ export const App: React.FC = () => {
       setToastMessage("Auto Switch dinonaktifkan");
       setTimeout(() => setToastMessage(null), 3000);
     } else {
+      // Validate if unplayed games exist when unplayed mode is enabled
+      if (settings.auto_switch_unplayed_only) {
+        const playedIds = new Set(settings.recent_history.map((h) => h.id));
+        let pool = games;
+        if (activeTab === "favorites" && settings.favorites.length > 0) {
+          const favGames = games.filter((g) => settings.favorites.includes(g.id));
+          if (favGames.length > 0) pool = favGames;
+        }
+        const unplayed = pool.filter(
+          (g) => !playedIds.has(g.id) && g.executables && g.executables.length > 0
+        );
+        if (unplayed.length === 0) {
+          setToastMessage("Auto Switch: Semua game dalam daftar sudah pernah dimainkan!");
+          setTimeout(() => setToastMessage(null), 4500);
+          return;
+        }
+      }
+
       setIsAutoSwitch(true);
       if (activeSession) {
         // Continue current session, schedule next random switch
@@ -232,7 +304,8 @@ export const App: React.FC = () => {
         const targetTime = Date.now() + durationSecs * 1000;
         setAutoSwitchTargetTime(targetTime);
         setAutoSwitchRemainingSecs(durationSecs);
-        setToastMessage(`Auto Switch aktif! Berganti dalam ${Math.floor(durationSecs / 60)} menit`);
+        const minutes = Math.max(1, Math.round(durationSecs / 60));
+        setToastMessage(`Auto Switch aktif! Berganti dalam ~${minutes} menit`);
         setTimeout(() => setToastMessage(null), 4000);
       } else {
         // Start immediate random game
@@ -256,23 +329,43 @@ export const App: React.FC = () => {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isAutoSwitch, autoSwitchTargetTime, activeSession?.app_id, games, settings.favorites, activeTab]);
+  }, [
+    isAutoSwitch,
+    autoSwitchTargetTime,
+    activeSession?.app_id,
+    games,
+    settings.favorites,
+    settings.recent_history,
+    settings.auto_switch_unplayed_only,
+    settings.auto_switch_min_minutes,
+    settings.auto_switch_max_minutes,
+    activeTab,
+  ]);
 
-  // Filtered games based on tab and instant search query
+  // Filtered games based on tab and instant search query:
+  // History tab displays 100% of played games in chronological order without omission
   const filteredGames = useMemo(() => {
     let sourceList = games;
 
     if (activeTab === "favorites") {
       sourceList = games.filter((g) => settings.favorites.includes(g.id));
     } else if (activeTab === "history") {
-      const historyIds = settings.recent_history.map((h) => h.id);
-      sourceList = games
-        .filter((g) => historyIds.includes(g.id))
-        .sort((a, b) => {
-          const indexA = historyIds.indexOf(a.id);
-          const indexB = historyIds.indexOf(b.id);
-          return indexA - indexB;
-        });
+      const gameMap = new Map(games.map((g) => [g.id, g]));
+      const historyGames: GameItem[] = [];
+      for (const h of settings.recent_history) {
+        const found = gameMap.get(h.id);
+        if (found) {
+          historyGames.push(found);
+        } else {
+          historyGames.push({
+            id: h.id,
+            name: h.name,
+            icon: null,
+            executables: ["game.exe"],
+          });
+        }
+      }
+      sourceList = historyGames;
     }
 
     if (!searchQuery.trim()) {
@@ -296,16 +389,19 @@ export const App: React.FC = () => {
         session={activeSession}
         isAutoSwitch={isAutoSwitch}
         autoSwitchRemainingSecs={autoSwitchRemainingSecs}
-        onStop={() => {
+        onStop={async () => {
           setIsAutoSwitch(false);
           setAutoSwitchTargetTime(null);
           setAutoSwitchRemainingSecs(null);
           if (activeSession) {
             const foundGame = games.find((g) => g.id === activeSession.app_id);
             if (foundGame) {
-              handleToggleActive(foundGame, activeSession.executable_path);
+              await handleToggleActive(foundGame, activeSession.executable_path);
             } else {
-              invoke("stop_simulation").then(() => setActiveSession(null));
+              await invoke("stop_simulation");
+              setActiveSession(null);
+              const updated = await invoke<AppSettings>("get_settings");
+              setSettings(updated);
             }
           }
         }}
@@ -323,7 +419,7 @@ export const App: React.FC = () => {
         onToggleAutoSwitch={handleToggleAutoSwitch}
       />
 
-      {/* Tab Bar (All / Favorites / History) */}
+      {/* Tab Bar (All / Favorites / Recently Played) */}
       <TabNavigation
         activeTab={activeTab}
         onTabChange={setActiveTab}
@@ -347,6 +443,7 @@ export const App: React.FC = () => {
           activeSession={activeSession}
           onToggleActive={handleToggleActive}
           onToggleFavorite={handleToggleFavorite}
+          historyMap={historyMap}
         />
       )}
 
@@ -356,6 +453,7 @@ export const App: React.FC = () => {
         onClose={() => setIsSettingsOpen(false)}
         settings={settings}
         onUpdateSettings={handleUpdateSettings}
+        unplayedCount={unplayedCount}
       />
 
       {/* Auto Switch Toast Notification */}

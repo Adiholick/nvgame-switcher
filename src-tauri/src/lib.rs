@@ -79,6 +79,9 @@ fn start_simulation(
     let pid = child.id();
     let started_at = Utc::now().to_rfc3339();
 
+    // Mark as played immediately in history so it counts as played right away
+    let _ = settings::record_played(&app_id, &game_name, 0);
+
     let session = ActiveSession {
         app_id: app_id.clone(),
         game_name: game_name.clone(),
@@ -193,6 +196,9 @@ pub fn run() {
             if let Some(state) = app_handle.try_state::<AppState>() {
                 let mut lock = state.active_game.lock().unwrap();
                 if let Some(running) = lock.take() {
+                    let old_app_id = running.session.app_id.clone();
+                    let duration = running.start_instant.elapsed().as_secs();
+                    let _ = settings::record_played(&old_app_id, &running.session.game_name, duration);
                     let _ = process_engine::kill_process(running.child);
                 }
             }

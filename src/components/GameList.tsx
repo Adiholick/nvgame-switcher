@@ -1,6 +1,6 @@
 import React, { useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { GameItem, ActiveSession } from "../types";
+import { GameItem, ActiveSession, HistoryItem } from "../types";
 import { GameRow } from "./GameRow";
 import { SearchX } from "lucide-react";
 
@@ -10,6 +10,7 @@ interface GameListProps {
   activeSession: ActiveSession | null;
   onToggleActive: (game: GameItem, selectedExe: string) => void;
   onToggleFavorite: (appId: string) => void;
+  historyMap?: Map<string, HistoryItem>;
 }
 
 export const GameList: React.FC<GameListProps> = ({
@@ -18,6 +19,7 @@ export const GameList: React.FC<GameListProps> = ({
   activeSession,
   onToggleActive,
   onToggleFavorite,
+  historyMap,
 }) => {
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -56,6 +58,7 @@ export const GameList: React.FC<GameListProps> = ({
           const game = games[virtualRow.index];
           const isFavorite = favorites.includes(game.id);
           const isActive = activeSession?.app_id === game.id;
+          const historyInfo = historyMap?.get(game.id);
 
           return (
             <div
@@ -75,6 +78,7 @@ export const GameList: React.FC<GameListProps> = ({
                 isActive={isActive}
                 onToggleActive={onToggleActive}
                 onToggleFavorite={onToggleFavorite}
+                historyInfo={historyInfo}
               />
             </div>
           );

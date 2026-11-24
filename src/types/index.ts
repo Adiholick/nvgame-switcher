@@ -27,6 +27,9 @@ export interface AppSettings {
   minimize_to_tray_on_close: boolean;
   auto_cleanup_on_exit: boolean;
   notify_on_auto_switch?: boolean;
+  auto_switch_unplayed_only?: boolean;
+  auto_switch_min_minutes?: number;
+  auto_switch_max_minutes?: number;
 }
 
 export interface AutoSwitchState {
